@@ -1,0 +1,14 @@
+package com.evaluation.prototype.academic.dto;
+
+import java.util.UUID;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record ProgramRequest(
+        @NotNull UUID departmentId,
+        @NotBlank String name,
+        @NotBlank String code,
+        @Min(1) Integer durationSemesters) {
+}

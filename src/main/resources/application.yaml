@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: prototype
+  datasource:
+  
+    url: jdbc:postgresql://aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+    username: postgres.zgmqxixlaviobtgzdtdl
+    password: s3l5AyCJaJkuFyS9
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    # schema-consolidated.sql can be used to bootstrap an existing database
+    # without Flyway history. Treat that complete V1-V14 schema as baseline.
+    baseline-on-migrate: true
+    baseline-version: 14
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:tNYsxmnxqJZP6WbRqFXbuMxMVgnIrMeulJDwPnn3dkY}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+  storage:
+    # Where scanned answer-booklet PDFs live on disk. Each script's file is stored
+    # once at {scriptId}.pdf and overwritten in place whenever it's re-uploaded
+    # (e.g. after an evaluator annotates it) - never downloaded to the client.
+    dir: ${STORAGE_DIR:./data/booklets}
