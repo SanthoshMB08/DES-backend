@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.evaluation.prototype.attendance.repository.AttendanceRepository;
 import com.evaluation.prototype.auth.service.CurrentUserService;
 import com.evaluation.prototype.hallticket.repository.HallTicketExamRepository;
-import com.evaluation.prototype.storage.FileStorageService;
+import com.evaluation.prototype.storage.SupabaseStorageService;
 import com.evaluation.prototype.user.entity.User;
 import com.evaluation.prototype.user.repository.UserRepository;
 import com.evaluation.prototype.valuation.dto.ScriptSubmitRequest;
@@ -63,7 +63,7 @@ class ValuationServiceTest {
                 mock(SubjectRepository.class),
                 userRepository,
                 currentUserService,
-                mock(FileStorageService.class),
+                mock(SupabaseStorageService.class),
                 mock(AttendanceRepository.class),
                 mock(HallTicketExamRepository.class));
 
@@ -119,7 +119,7 @@ class ValuationServiceTest {
                 subjectRepository,
                 userRepository,
                 currentUserService,
-                mock(FileStorageService.class),
+                mock(SupabaseStorageService.class),
                 mock(AttendanceRepository.class),
                 mock(HallTicketExamRepository.class));
 
@@ -170,7 +170,7 @@ class ValuationServiceTest {
                 mock(SubjectRepository.class),
                 userRepository,
                 currentUserService,
-                mock(FileStorageService.class),
+                mock(SupabaseStorageService.class),
                 mock(AttendanceRepository.class),
                 mock(HallTicketExamRepository.class));
 

@@ -27,7 +27,15 @@ app:
     secret: ${JWT_SECRET:tNYsxmnxqJZP6WbRqFXbuMxMVgnIrMeulJDwPnn3dkY}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
   storage:
-    # Where scanned answer-booklet PDFs live on disk. Each script's file is stored
-    # once at {scriptId}.pdf and overwritten in place whenever it's re-uploaded
-    # (e.g. after an evaluator annotates it) - never downloaded to the client.
-    dir: ${STORAGE_DIR:./data/booklets}
+    # Scanned answer-booklet PDFs live in a private Supabase Storage bucket. Each
+    # script's file is stored once at {scriptId}.pdf and overwritten in place
+    # whenever it's re-uploaded (e.g. after an evaluator annotates it) - never
+    # downloaded to the client.
+    #
+    # SUPABASE_SERVICE_ROLE_KEY must be the service_role key (not the anon key):
+    # it bypasses RLS, and this service is the only thing allowed to read the
+    # bucket. Never expose it to the frontend.
+    supabase:
+      url: ${SUPABASE_URL:}
+      service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+      bucket: ${SUPABASE_STORAGE_BUCKET:scripts}

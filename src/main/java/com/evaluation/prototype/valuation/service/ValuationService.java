@@ -32,7 +32,7 @@ import com.evaluation.prototype.valuation.repository.ValuationScriptRepository;
 
 import org.springframework.web.multipart.MultipartFile;
 
-import com.evaluation.prototype.storage.FileStorageService;
+import com.evaluation.prototype.storage.SupabaseStorageService;
 import com.evaluation.prototype.student.entity.Student;
 
 @Service
@@ -45,7 +45,7 @@ public class ValuationService {
     private final SubjectRepository subjectRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
-    private final FileStorageService fileStorageService;
+    private final SupabaseStorageService fileStorageService;
     private final AttendanceRepository attendanceRepository;
     private final HallTicketExamRepository hallTicketExamRepository;
 
@@ -55,7 +55,7 @@ public class ValuationService {
             SubjectRepository subjectRepository,
             UserRepository userRepository,
             CurrentUserService currentUserService,
-            FileStorageService fileStorageService,
+            SupabaseStorageService fileStorageService,
             AttendanceRepository attendanceRepository,
             HallTicketExamRepository hallTicketExamRepository) {
         this.bundleRepository = bundleRepository;
