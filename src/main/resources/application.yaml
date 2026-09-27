@@ -36,6 +36,6 @@ app:
     # it bypasses RLS, and this service is the only thing allowed to read the
     # bucket. Never expose it to the frontend.
     supabase:
-      url: ${SUPABASE_URL:}
-      service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+      url: ${SUPABASE_URL:"https://zgmqxixlaviobtgzdtdl.supabase.co"}
+      service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnbXF4aXhsYXZpb2J0Z3pkdGRsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTAzMTk2NiwiZXhwIjoyMTA0NjA3OTY2fQ.5QOsVkv13w0Z8gY-Nbu1_F_BsOnqGFWU7_AapHYvbyI"}
       bucket: ${SUPABASE_STORAGE_BUCKET:scripts}
