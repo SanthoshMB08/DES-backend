@@ -12,6 +12,8 @@ import com.evaluation.prototype.academic.entity.AcademicSubject;
 public interface AcademicSubjectRepository extends JpaRepository<AcademicSubject, UUID> {
     List<AcademicSubject> findBySyllabusIdAndSemesterOrderBySubjectCodeAsc(UUID syllabusId, String semester);
 
+    List<AcademicSubject> findByQpCodeIgnoreCaseAndSemesterOrderByUpdatedAtDesc(String qpCode, String semester);
+
     long countByCurriculumId(UUID curriculumId);
 
     List<AcademicSubject> findByCurriculumIdOrderBySubjectCodeAsc(UUID curriculumId);

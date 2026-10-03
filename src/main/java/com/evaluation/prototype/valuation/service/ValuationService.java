@@ -3,6 +3,11 @@ package com.evaluation.prototype.valuation.service;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.evaluation.prototype.academic.dto.MarkingSection;
+import com.evaluation.prototype.academic.entity.AcademicSubject;
+import com.evaluation.prototype.academic.repository.AcademicSubjectRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +34,8 @@ import com.evaluation.prototype.valuation.enums.ValuationStatus;
 import com.evaluation.prototype.valuation.repository.SubjectRepository;
 import com.evaluation.prototype.valuation.repository.ValuationBundleRepository;
 import com.evaluation.prototype.valuation.repository.ValuationScriptRepository;
+import com.evaluation.prototype.academic.entity.Syllabus;
+import com.evaluation.prototype.valuation.entity.Course;
 
 import org.springframework.web.multipart.MultipartFile;
 
@@ -43,6 +50,8 @@ public class ValuationService {
     private final ValuationBundleRepository bundleRepository;
     private final ValuationScriptRepository scriptRepository;
     private final SubjectRepository subjectRepository;
+    private final AcademicSubjectRepository academicSubjectRepository;
+    private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final SupabaseStorageService fileStorageService;
@@ -53,6 +62,8 @@ public class ValuationService {
             ValuationBundleRepository bundleRepository,
             ValuationScriptRepository scriptRepository,
             SubjectRepository subjectRepository,
+            AcademicSubjectRepository academicSubjectRepository,
+            ObjectMapper objectMapper,
             UserRepository userRepository,
             CurrentUserService currentUserService,
             SupabaseStorageService fileStorageService,
@@ -61,6 +72,8 @@ public class ValuationService {
         this.bundleRepository = bundleRepository;
         this.scriptRepository = scriptRepository;
         this.subjectRepository = subjectRepository;
+        this.academicSubjectRepository = academicSubjectRepository;
+        this.objectMapper = objectMapper;
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
@@ -339,9 +352,11 @@ public class ValuationService {
         if (script.getStatus() == ValuationStatus.REVIEWED || script.getStatus() == ValuationStatus.APPROVED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Marks are already reviewed and fixed - they can no longer be changed");
         }
-        requireWithinMaxMarks(script.getSubjectId(), request.totalMarks());
+        java.math.BigDecimal totalMarks = calculateConfiguredTotalMarks(
+                script, request.marksJson(), request.totalMarks());
+        requireWithinMaxMarks(script.getSubjectId(), totalMarks);
         script.setMarksJson(request.marksJson());
-        script.setTotalMarks(request.totalMarks());
+        script.setTotalMarks(totalMarks);
         script.setStatus(ValuationStatus.VALUATED);
         script = scriptRepository.save(script);
 
@@ -380,9 +395,15 @@ public class ValuationService {
         if (request.marksJson() != null) {
             script.setMarksJson(request.marksJson());
         }
-        if (request.totalMarks() != null) {
-            requireWithinMaxMarks(script.getSubjectId(), request.totalMarks());
-            script.setTotalMarks(request.totalMarks());
+        if (request.marksJson() != null || request.totalMarks() != null) {
+            java.math.BigDecimal totalMarks = calculateConfiguredTotalMarks(
+                    script,
+                    request.marksJson() == null ? script.getMarksJson() : request.marksJson(),
+                    request.totalMarks() == null ? script.getTotalMarks() : request.totalMarks());
+            if (totalMarks != null) {
+                requireWithinMaxMarks(script.getSubjectId(), totalMarks);
+                script.setTotalMarks(totalMarks);
+            }
         }
         script.setReviewComments(request.comments());
         // Once approved the marks are fixed (REVIEWED is the final, locked state in this flow).
@@ -520,6 +541,7 @@ public class ValuationService {
     }
 
     private ScriptResponse toScriptResponse(ValuationScript script) {
+        List<MarkingSection> markingScheme = findMarkingScheme(script);
         return new ScriptResponse(
                 script.getId(),
                 script.getBundle() == null ? null : script.getBundle().getId(),
@@ -538,6 +560,51 @@ public class ValuationService {
                 script.getStatus().name(),
                 script.getMarksJson(),
                 script.getTotalMarks(),
-                script.getReviewComments());
+                script.getReviewComments(),
+                markingScheme);
+    }
+
+    private List<MarkingSection> findMarkingScheme(ValuationScript script) {
+        if (script.getQpCode() == null || script.getSemester() == null) {
+            return List.of();
+        }
+        if (script.getSubjectId() != null) {
+            Subject evaluationSubject = subjectRepository.findById(script.getSubjectId()).orElse(null);
+            Course course = evaluationSubject == null ? null : evaluationSubject.getCourseRef();
+            Syllabus syllabus = course == null ? null : course.getSyllabus();
+            if (syllabus != null) {
+                return academicSubjectRepository
+                        .findBySyllabusIdAndSemesterOrderBySubjectCodeAsc(syllabus.getId(), script.getSemester())
+                        .stream()
+                        .filter(subject -> subject.getQpCode().equalsIgnoreCase(script.getQpCode()))
+                        .map(AcademicSubject::getMarkingScheme)
+                        .filter(scheme -> !scheme.isEmpty())
+                        .findFirst()
+                        .orElse(List.of());
+            }
+        }
+        return academicSubjectRepository
+                .findByQpCodeIgnoreCaseAndSemesterOrderByUpdatedAtDesc(script.getQpCode(), script.getSemester())
+                .stream()
+                .map(AcademicSubject::getMarkingScheme)
+                .filter(scheme -> !scheme.isEmpty())
+                .findFirst()
+                .orElse(List.of());
+    }
+
+    private java.math.BigDecimal calculateConfiguredTotalMarks(
+            ValuationScript script, String marksJson, java.math.BigDecimal fallbackTotal) {
+        List<MarkingSection> scheme = findMarkingScheme(script);
+        if (scheme.isEmpty()) {
+            return fallbackTotal;
+        }
+        try {
+            JsonNode questions = objectMapper.readTree(marksJson);
+            return MarkingSchemeScorer.calculate(questions, scheme);
+        } catch (com.evaluation.prototype.common.exception.ApiException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Submitted question marks are invalid");
+        }
     }
 }

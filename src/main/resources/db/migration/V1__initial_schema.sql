@@ -574,6 +574,7 @@ CREATE TABLE academic_subject (
     subject_name VARCHAR(200) NOT NULL,
     qp_code VARCHAR(100) NOT NULL,
     max_marks NUMERIC(6,2) NOT NULL DEFAULT 100,
+    marking_scheme JSONB NOT NULL DEFAULT '[]'::jsonb,
     credits NUMERIC(4,1),
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL,

@@ -2,7 +2,14 @@ package com.evaluation.prototype.academic.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import com.evaluation.prototype.academic.dto.MarkingSection;
 import com.evaluation.prototype.user.entity.User;
 import jakarta.persistence.*;
 
@@ -17,6 +24,9 @@ public class AcademicSubject {
     @Column(name="subject_name", nullable=false) private String subjectName;
     @Column(name="qp_code", nullable=false) private String qpCode;
     @Column(name="max_marks", nullable=false) private BigDecimal maxMarks = BigDecimal.valueOf(100);
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name="marking_scheme", nullable=false, columnDefinition="jsonb")
+    private List<MarkingSection> markingScheme = new ArrayList<>();
     private BigDecimal credits;
     @ManyToOne @JoinColumn(name="created_by") private User createdBy;
     @Column(name="created_at", nullable=false) private Instant createdAt;
@@ -28,5 +38,6 @@ public class AcademicSubject {
     public String getSemester(){return semester;} public void setSemester(String v){semester=v;} public String getSubjectCode(){return subjectCode;} public void setSubjectCode(String v){subjectCode=v;}
     public String getSubjectName(){return subjectName;} public void setSubjectName(String v){subjectName=v;} public String getQpCode(){return qpCode;} public void setQpCode(String v){qpCode=v;}
     public BigDecimal getMaxMarks(){return maxMarks;} public void setMaxMarks(BigDecimal v){maxMarks=v;} public BigDecimal getCredits(){return credits;} public void setCredits(BigDecimal v){credits=v;}
+    public List<MarkingSection> getMarkingScheme(){return markingScheme;} public void setMarkingScheme(List<MarkingSection> v){markingScheme=v == null ? new ArrayList<>() : new ArrayList<>(v);}
     public void setCreatedBy(User v){createdBy=v;}
 }

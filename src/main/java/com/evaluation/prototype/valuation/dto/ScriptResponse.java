@@ -2,7 +2,10 @@ package com.evaluation.prototype.valuation.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
+
+import com.evaluation.prototype.academic.dto.MarkingSection;
 
 public record ScriptResponse(
         UUID id,
@@ -22,5 +25,6 @@ public record ScriptResponse(
         String status,
         String marksJson,
         BigDecimal totalMarks,
-        String reviewComments) {
+        String reviewComments,
+        List<MarkingSection> markingScheme) {
 }

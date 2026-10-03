@@ -17,6 +17,7 @@ import com.evaluation.prototype.academic.dto.SyllabusRequest;
 import com.evaluation.prototype.academic.dto.SyllabusResponse;
 import com.evaluation.prototype.academic.dto.AcademicSubjectRequest;
 import com.evaluation.prototype.academic.dto.AcademicSubjectResponse;
+import com.evaluation.prototype.academic.dto.MarkingSection;
 import com.evaluation.prototype.academic.entity.Batch;
 import com.evaluation.prototype.academic.entity.Department;
 import com.evaluation.prototype.academic.entity.Program;
@@ -311,7 +312,9 @@ public class AcademicStructureService {
         AcademicSubject subject = new AcademicSubject();
         subject.setSyllabus(syllabus); subject.setSemester(request.semester());
         subject.setSubjectCode(request.subjectCode()); subject.setSubjectName(request.subjectName());
-        subject.setQpCode(request.qpCode()); subject.setMaxMarks(request.maxMarks() == null ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
+        subject.setQpCode(request.qpCode());
+        subject.setMaxMarks(request.maxMarks() == null ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
+        subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits()); subject.setCreatedBy(currentUser());
         return toResponse(academicSubjectRepository.save(subject));
     }
@@ -329,6 +332,7 @@ public class AcademicStructureService {
         subject.setSubjectName(request.subjectName());
         subject.setQpCode(request.qpCode());
         subject.setMaxMarks(request.maxMarks() == null ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
+        subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits());
         subject.setCreatedBy(currentUser());
         return toResponse(academicSubjectRepository.save(subject));
@@ -352,6 +356,7 @@ public class AcademicStructureService {
         subject.setQpCode(request.qpCode());
         subject.setMaxMarks(request.maxMarks() == null
                 ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
+        subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits());
         return toResponse(academicSubjectRepository.save(subject));
     }
@@ -374,6 +379,37 @@ public class AcademicStructureService {
             throw new ApiException(HttpStatus.CONFLICT,
                     "A subject with this QP code already exists in the curriculum");
         }
+    }
+
+    private List<MarkingSection> validateMarkingScheme(List<MarkingSection> sections, java.math.BigDecimal subjectMaxMarks) {
+        if (sections == null || sections.isEmpty()) {
+            return List.of();
+        }
+        java.util.Set<String> names = new java.util.HashSet<>();
+        java.math.BigDecimal configuredTotal = java.math.BigDecimal.ZERO;
+        for (MarkingSection section : sections) {
+            if (section == null || section.name() == null || section.name().isBlank()
+                    || section.maxMarks() == null || section.maxMarks().signum() <= 0
+                    || section.marksPerQuestion() == null || section.marksPerQuestion().signum() <= 0
+                    || section.questionCount() <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Each marking section needs a name, positive maximum marks, positive marks per question, and at least one question");
+            }
+            if (!names.add(section.name().trim().toLowerCase(java.util.Locale.ROOT))) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Marking section names must be unique");
+            }
+            if (section.marksPerQuestion().multiply(java.math.BigDecimal.valueOf(section.questionCount()))
+                    .compareTo(section.maxMarks()) < 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "The section maximum cannot exceed the total marks available from its questions");
+            }
+            configuredTotal = configuredTotal.add(section.maxMarks());
+        }
+        if (subjectMaxMarks == null || configuredTotal.compareTo(subjectMaxMarks) != 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "The sum of section maximum marks must equal the subject maximum marks");
+        }
+        return List.copyOf(sections);
     }
 
     // ---------- mapping ----------
@@ -416,6 +452,6 @@ public class AcademicStructureService {
     private AcademicSubjectResponse toResponse(AcademicSubject subject) {
         return new AcademicSubjectResponse(subject.getId(), subject.getSyllabus().getId(), subject.getSemester(),
                 subject.getSubjectCode(), subject.getSubjectName(), subject.getQpCode(),
-                subject.getMaxMarks(), subject.getCredits());
+                subject.getMaxMarks(), subject.getCredits(), subject.getMarkingScheme());
     }
 }

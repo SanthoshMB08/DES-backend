@@ -14,7 +14,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.evaluation.prototype.academic.repository.AcademicSubjectRepository;
 import com.evaluation.prototype.attendance.repository.AttendanceRepository;
 import com.evaluation.prototype.auth.service.CurrentUserService;
 import com.evaluation.prototype.hallticket.repository.HallTicketExamRepository;
@@ -61,6 +63,8 @@ class ValuationServiceTest {
                 bundleRepository,
                 scriptRepository,
                 mock(SubjectRepository.class),
+                mock(AcademicSubjectRepository.class),
+                new ObjectMapper(),
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
@@ -117,6 +121,8 @@ class ValuationServiceTest {
                 bundleRepository,
                 scriptRepository,
                 subjectRepository,
+                mock(AcademicSubjectRepository.class),
+                new ObjectMapper(),
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
@@ -168,6 +174,8 @@ class ValuationServiceTest {
                 bundleRepository,
                 scriptRepository,
                 mock(SubjectRepository.class),
+                mock(AcademicSubjectRepository.class),
+                new ObjectMapper(),
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
