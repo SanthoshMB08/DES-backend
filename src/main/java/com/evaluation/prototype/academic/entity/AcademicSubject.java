@@ -17,8 +17,8 @@ import jakarta.persistence.*;
 @Table(name = "academic_subject")
 public class AcademicSubject {
     @Id private UUID id;
-    @ManyToOne(optional=false) @JoinColumn(name="syllabus_id") private Syllabus syllabus;
-    @ManyToOne @JoinColumn(name="curriculum_id") private AcademicCurriculum curriculum;
+    @ManyToOne(fetch = FetchType.LAZY, optional=false) @JoinColumn(name="syllabus_id") private Syllabus syllabus;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name="curriculum_id") private AcademicCurriculum curriculum;
     @Column(nullable=false) private String semester;
     @Column(name="subject_code", nullable=false) private String subjectCode;
     @Column(name="subject_name", nullable=false) private String subjectName;
@@ -28,7 +28,7 @@ public class AcademicSubject {
     @Column(name="marking_scheme", nullable=false, columnDefinition="jsonb")
     private List<MarkingSection> markingScheme = new ArrayList<>();
     private BigDecimal credits;
-    @ManyToOne @JoinColumn(name="created_by") private User createdBy;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name="created_by") private User createdBy;
     @Column(name="created_at", nullable=false) private Instant createdAt;
     @Column(name="updated_at", nullable=false) private Instant updatedAt;
     @PrePersist void prePersist(){if(id==null)id=UUID.randomUUID(); Instant n=Instant.now();createdAt=n;updatedAt=n;}
