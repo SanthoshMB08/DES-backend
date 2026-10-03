@@ -3,6 +3,8 @@ package com.evaluation.prototype.academic.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,8 @@ import com.evaluation.prototype.user.entity.User;
  */
 @Service
 public class AcademicStructureService {
+
+    private static final Logger log = LoggerFactory.getLogger(AcademicStructureService.class);
 
     private final DepartmentRepository departmentRepository;
     private final ProgramRepository programRepository;
@@ -316,7 +320,10 @@ public class AcademicStructureService {
         subject.setMaxMarks(request.maxMarks() == null ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
         subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits()); subject.setCreatedBy(currentUser());
-        return toResponse(academicSubjectRepository.save(subject));
+        subject = academicSubjectRepository.save(subject);
+        log.info("Created academic subject {} with {} configured marking sections",
+                subject.getId(), subject.getMarkingScheme().size());
+        return toResponse(subject);
     }
 
     @Transactional
@@ -335,7 +342,10 @@ public class AcademicStructureService {
         subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits());
         subject.setCreatedBy(currentUser());
-        return toResponse(academicSubjectRepository.save(subject));
+        subject = academicSubjectRepository.save(subject);
+        log.info("Created academic subject {} with {} configured marking sections",
+                subject.getId(), subject.getMarkingScheme().size());
+        return toResponse(subject);
     }
 
     @Transactional
@@ -358,7 +368,10 @@ public class AcademicStructureService {
                 ? java.math.BigDecimal.valueOf(100) : request.maxMarks());
         subject.setMarkingScheme(validateMarkingScheme(request.markingScheme(), subject.getMaxMarks()));
         subject.setCredits(request.credits());
-        return toResponse(academicSubjectRepository.save(subject));
+        subject = academicSubjectRepository.save(subject);
+        log.info("Updated academic subject {} with {} configured marking sections",
+                subject.getId(), subject.getMarkingScheme().size());
+        return toResponse(subject);
     }
 
     public List<AcademicSubjectResponse> listAcademicSubjectsForCurriculum(UUID curriculumId) {

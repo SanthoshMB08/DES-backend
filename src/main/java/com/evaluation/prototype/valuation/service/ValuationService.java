@@ -3,6 +3,8 @@ package com.evaluation.prototype.valuation.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.evaluation.prototype.academic.dto.MarkingSection;
@@ -45,6 +47,7 @@ import com.evaluation.prototype.student.entity.Student;
 @Service
 public class ValuationService {
 
+    private static final Logger log = LoggerFactory.getLogger(ValuationService.class);
     private static final int BUNDLE_SIZE = 20;
 
     private final ValuationBundleRepository bundleRepository;
@@ -148,6 +151,8 @@ public class ValuationService {
         script.setCreatedBy(scanner);
         script = scriptRepository.save(script);
 
+        log.info("Scanned answer script {} created for subject {}",
+                script.getId(), script.getSubjectId());
         return toScriptResponse(script);
     }
 
@@ -168,6 +173,7 @@ public class ValuationService {
             script.setScannedFileName(file.getOriginalFilename());
         }
         script = scriptRepository.save(script);
+        log.info("Scanned file attached to answer script {}", scriptId);
         return toScriptResponse(script);
     }
 
@@ -240,6 +246,8 @@ public class ValuationService {
             scriptRepository.save(script);
         }
 
+        log.info("Valuation bundle {} formed for subject {} with {} scripts",
+                bundle.getId(), subjectId, batch.size());
         return toBundleResponse(bundle);
     }
 
@@ -281,6 +289,8 @@ public class ValuationService {
         evaluator.setAvailable(false);
         userRepository.save(evaluator);
 
+        log.info("Valuation bundle {} assigned to evaluator {}",
+                bundle.getId(), evaluator.getId());
         return toBundleResponse(bundle);
     }
 
@@ -333,6 +343,8 @@ public class ValuationService {
 
         valuator.setAvailable(true);
         userRepository.save(valuator);
+        log.info("Valuation bundle {} submitted by evaluator {}; {} pending scripts returned",
+                bundle.getId(), valuator.getId(), remaining.size());
         return remaining.size();
     }
 
@@ -368,6 +380,7 @@ public class ValuationService {
             bundleRepository.save(bundle);
         }
 
+        log.info("Answer script {} evaluated by evaluator {}", script.getId(), valuator.getId());
         return toScriptResponse(script);
     }
 
@@ -419,6 +432,8 @@ public class ValuationService {
             bundleRepository.save(bundle);
         }
 
+        log.info("Answer script {} review completed by reviewer {}; approved={}, status={}",
+                script.getId(), reviewer.getId(), request.approved(), script.getStatus());
         return toScriptResponse(script);
     }
 
@@ -600,10 +615,16 @@ public class ValuationService {
         }
         try {
             JsonNode questions = objectMapper.readTree(marksJson);
-            return MarkingSchemeScorer.calculate(questions, scheme);
+            java.math.BigDecimal calculatedTotal = MarkingSchemeScorer.calculate(questions, scheme);
+            log.debug("Applied configured marking scheme to script {} across {} sections",
+                    script.getId(), scheme.size());
+            return calculatedTotal;
         } catch (com.evaluation.prototype.common.exception.ApiException exception) {
+            log.warn("Marking scheme rejected submitted scores for script {}: {}",
+                    script.getId(), exception.getMessage());
             throw exception;
         } catch (Exception exception) {
+            log.warn("Could not parse submitted marks for script {}", script.getId(), exception);
             throw new ApiException(HttpStatus.BAD_REQUEST, "Submitted question marks are invalid");
         }
     }
