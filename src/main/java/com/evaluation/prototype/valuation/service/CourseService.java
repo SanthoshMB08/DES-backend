@@ -170,7 +170,9 @@ public class CourseService {
     }
 
     /** BO's view of every paper's status, grouped by subject, across their whole course. */
+    @Transactional
     public List<SubjectProgressResponse> listSubjectsForMyCourse() {
+        scriptRepository.linkUnassignedScriptsToSubjects();
         User bo = currentUser();
         Course course = courseRepository.findByBoId(bo.getId()).orElse(null);
         if (course == null) return List.of();

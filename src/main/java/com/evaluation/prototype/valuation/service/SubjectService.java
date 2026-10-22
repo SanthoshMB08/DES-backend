@@ -167,7 +167,9 @@ public class SubjectService {
     }
 
     /** Get progress for a single subject (total scripts, valuated, reviewed). */
+    @Transactional
     public SubjectProgressResponse getSubjectProgress(UUID subjectId) {
+        scriptRepository.linkUnassignedScriptsToSubjects();
         Subject subject = findSubject(subjectId);
         List<ValuationScript> scripts = scriptRepository.findBySubjectId(subjectId);
         int total = scripts.size();

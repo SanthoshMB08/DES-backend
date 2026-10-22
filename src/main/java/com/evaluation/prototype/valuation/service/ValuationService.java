@@ -131,6 +131,8 @@ public class ValuationService {
     public ScriptResponse createScript(ScriptCreateRequest request) {
         User scanner = currentUser();
 
+        String qpCode = request.qpCode() == null ? null : request.qpCode().trim().toUpperCase();
+
         if (scriptRepository.findByAnswerBookletId(request.answerBookletId()).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "Answer booklet already scanned: " + request.answerBookletId());
         }
@@ -138,14 +140,14 @@ public class ValuationService {
         // Scanner works independently of RE evaluation status - they can pre-scan
         // booklets before the RE opens evaluation. The subject lookup is only
         // to auto-fill course/semester/subject from the QP code.
-        Subject subject = subjectRepository.findByQpCode(request.qpCode()).orElse(null);
+        Subject subject = qpCode == null ? null : subjectRepository.findByQpCodeIgnoreCase(qpCode).orElse(null);
 
         ValuationScript script = new ValuationScript();
         script.setSubjectId(subject != null ? subject.getId() : null);
         script.setAnswerBookletId(request.answerBookletId());
         script.setCandidateId(request.candidateId());
         script.setCandidateName(request.candidateName());
-        script.setQpCode(request.qpCode());
+        script.setQpCode(qpCode);
         script.setSubject(request.subject() != null ? request.subject() : (subject != null ? subject.getSubjectName() : null));
         script.setExamDate(request.examDate());
         script.setCourse(request.course() != null ? request.course() : (subject != null ? subject.getCourse() : null));
@@ -241,7 +243,9 @@ public class ValuationService {
     // they're called via /api/chief/... now (see ChiefController). They key off
     // currentUser().getSubjectId(), which resolves correctly for whoever is authenticated.
 
+    @Transactional
     public List<ScriptResponse> listUnbundledScripts() {
+        scriptRepository.linkUnassignedScriptsToSubjects();
         User bo = currentUser();
         UUID subjectId = bo.getSubjectId();
         if (subjectId == null) return List.of();
@@ -290,7 +294,9 @@ public class ValuationService {
         return toBundleResponse(bundle);
     }
 
+    @Transactional
     public List<BundleResponse> listBoBundles() {
+        scriptRepository.linkUnassignedScriptsToSubjects();
         User bo = currentUser();
         if (bo.getSubjectId() == null) return List.of();
         return bundleRepository.findBySubjectId(bo.getSubjectId()).stream()

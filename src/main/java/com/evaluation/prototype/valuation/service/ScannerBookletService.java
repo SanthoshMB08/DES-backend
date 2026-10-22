@@ -95,14 +95,15 @@ public class ScannerBookletService {
 
         User scanner = currentUserService.getCurrentUser()
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Not authenticated"));
-        Subject subject = subjectRepository.findByQpCodeIgnoreCase(registration.getQpCode()).orElse(null);
+        String qpCode = registration.getQpCode().trim().toUpperCase();
+        Subject subject = subjectRepository.findByQpCodeIgnoreCase(qpCode).orElse(null);
 
         ValuationScript script = new ValuationScript();
         script.setSubjectId(subject == null ? null : subject.getId());
         script.setAnswerBookletId(normalizedBookletNumber);
         script.setCandidateId(registration.getUsn());
         script.setCandidateName(registration.getStudent().getStudentName());
-        script.setQpCode(registration.getQpCode());
+        script.setQpCode(qpCode);
         script.setSubject(subject == null ? null : subject.getSubjectName());
         script.setExamDate(YearMonth.parse(registration.getExamYearMonth()).atDay(1));
         script.setCourse(subject == null ? null : subject.getCourse());
