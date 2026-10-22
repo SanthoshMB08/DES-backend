@@ -17,21 +17,60 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.evaluation.prototype.academic.repository.AcademicSubjectRepository;
-import com.evaluation.prototype.attendance.repository.AttendanceRepository;
 import com.evaluation.prototype.auth.service.CurrentUserService;
-import com.evaluation.prototype.hallticket.repository.HallTicketExamRepository;
+import com.evaluation.prototype.booklet.repository.BookletRecordRepository;
+import com.evaluation.prototype.hallticket.repository.HallTicketDataRepository;
 import com.evaluation.prototype.storage.SupabaseStorageService;
 import com.evaluation.prototype.user.entity.User;
 import com.evaluation.prototype.user.repository.UserRepository;
 import com.evaluation.prototype.valuation.dto.ScriptSubmitRequest;
+import com.evaluation.prototype.valuation.dto.BookletLookupResponse;
 import com.evaluation.prototype.valuation.entity.ValuationBundle;
 import com.evaluation.prototype.valuation.entity.ValuationScript;
 import com.evaluation.prototype.valuation.enums.ValuationStatus;
 import com.evaluation.prototype.valuation.repository.SubjectRepository;
 import com.evaluation.prototype.valuation.repository.ValuationBundleRepository;
 import com.evaluation.prototype.valuation.repository.ValuationScriptRepository;
+import com.evaluation.prototype.valuation.repository.ExamMarksRecordRepository;
+import com.evaluation.prototype.hallticket.entity.HallTicketData;
 
 class ValuationServiceTest {
+
+    @Test
+    void bookletLookupUsesLinkedExamRegistrationForStudentAndQuestionPaper() {
+        ValuationScript script = mock(ValuationScript.class);
+        when(script.getAnswerBookletId()).thenReturn("BOOKLET-1");
+        when(script.getCandidateId()).thenReturn("OLD-USN");
+        when(script.getQpCode()).thenReturn("OLD-QP");
+
+        HallTicketData registration = mock(HallTicketData.class);
+        when(registration.getUsn()).thenReturn("USN-1");
+        when(registration.getQpCode()).thenReturn("QP-1");
+
+        ValuationScriptRepository scriptRepository = mock(ValuationScriptRepository.class);
+        HallTicketDataRepository hallTicketDataRepository = mock(HallTicketDataRepository.class);
+        when(scriptRepository.findByAnswerBookletId("BOOKLET-1")).thenReturn(Optional.of(script));
+        when(hallTicketDataRepository.findByBooklet_BookletNumber("BOOKLET-1"))
+                .thenReturn(Optional.of(registration));
+
+        ValuationService service = new ValuationService(
+                mock(ValuationBundleRepository.class),
+                scriptRepository,
+                mock(SubjectRepository.class),
+                mock(AcademicSubjectRepository.class),
+                new ObjectMapper(),
+                mock(UserRepository.class),
+                mock(CurrentUserService.class),
+                mock(SupabaseStorageService.class),
+                hallTicketDataRepository,
+                mock(BookletRecordRepository.class),
+                mock(ExamMarksRecordRepository.class));
+
+        BookletLookupResponse response = service.lookupBooklet("BOOKLET-1");
+
+        assertEquals("USN-1", response.candidateId());
+        assertEquals("QP-1", response.qpCode());
+    }
 
     @Test
     void submittingPaperDoesNotFinalizeBundleOrRestoreEvaluatorAvailability() {
@@ -68,8 +107,9 @@ class ValuationServiceTest {
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
-                mock(AttendanceRepository.class),
-                mock(HallTicketExamRepository.class));
+                mock(HallTicketDataRepository.class),
+                mock(BookletRecordRepository.class),
+                mock(ExamMarksRecordRepository.class));
 
         service.submitScriptMarks(scriptId, new ScriptSubmitRequest("[]", BigDecimal.ZERO));
 
@@ -126,8 +166,9 @@ class ValuationServiceTest {
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
-                mock(AttendanceRepository.class),
-                mock(HallTicketExamRepository.class));
+                mock(HallTicketDataRepository.class),
+                mock(BookletRecordRepository.class),
+                mock(ExamMarksRecordRepository.class));
 
         int returned = service.submitBundle(bundleId);
 
@@ -179,8 +220,9 @@ class ValuationServiceTest {
                 userRepository,
                 currentUserService,
                 mock(SupabaseStorageService.class),
-                mock(AttendanceRepository.class),
-                mock(HallTicketExamRepository.class));
+                mock(HallTicketDataRepository.class),
+                mock(BookletRecordRepository.class),
+                mock(ExamMarksRecordRepository.class));
 
         int returned = service.submitBundle(bundleId);
 

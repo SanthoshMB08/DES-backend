@@ -78,7 +78,7 @@ public class ReviewerController {
     /** View-only: lets the reviewer see the evaluator's annotated copy while reviewing. */
     @GetMapping("/scripts/{scriptId}/file")
     public ResponseEntity<byte[]> getFile(@PathVariable UUID scriptId) {
-        byte[] bytes = valuationService.getScriptFile(scriptId);
+        byte[] bytes = valuationService.getReviewScriptFile(scriptId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")

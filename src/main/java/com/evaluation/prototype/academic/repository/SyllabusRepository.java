@@ -4,4 +4,14 @@ public interface SyllabusRepository extends JpaRepository<Syllabus, UUID> {
     List<Syllabus> findByProgramIdOrderByYearDesc(UUID programId);
     List<Syllabus> findByProgramIdIsNullOrProgramIdOrderByYearDesc(UUID programId);
     List<Syllabus> findAllByOrderByYearDesc();
+
+    boolean existsByProgramIsNullAndNameIgnoreCaseAndYearIgnoreCase(String name, String year);
+
+    boolean existsByProgramIdAndNameIgnoreCaseAndYearIgnoreCase(UUID programId, String name, String year);
+
+    boolean existsByProgramIsNullAndNameIgnoreCaseAndYearIgnoreCaseAndIdNot(
+            String name, String year, UUID excludedId);
+
+    boolean existsByProgramIdAndNameIgnoreCaseAndYearIgnoreCaseAndIdNot(
+            UUID programId, String name, String year, UUID excludedId);
 }

@@ -81,10 +81,6 @@ public class SubjectService {
         subject.setStatus(SubjectStatus.OPEN);
         subject.setMaxMarks(request.maxMarks() != null ? request.maxMarks() : java.math.BigDecimal.valueOf(100));
         subject.setCredits(request.credits());
-        subject.setCieWeightage(request.cieWeightage());
-        subject.setSeeWeightage(request.seeWeightage());
-        subject.setMaxCieMarks(request.maxCieMarks());
-        subject.setMinPassMarks(request.minPassMarks());
         subject.setOpenedBy(re);
         subject = subjectRepository.save(subject);
         return toResponse(subject);
@@ -204,10 +200,6 @@ public class SubjectService {
                 subject.getStatus().name(),
                 subject.getMaxMarks(),
                 subject.getCredits(),
-                subject.getCieWeightage(),
-                subject.getSeeWeightage(),
-                subject.getMaxCieMarks(),
-                subject.getMinPassMarks(),
                 subject.getCourseRef() == null ? null : subject.getCourseRef().getId(),
                 subject.getChief() == null ? null : subject.getChief().getFullName(),
                 subject.getChief() == null ? null : subject.getChief().getId(),

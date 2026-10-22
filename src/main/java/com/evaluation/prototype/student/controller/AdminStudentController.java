@@ -19,10 +19,7 @@ import com.evaluation.prototype.student.service.StudentService;
 import jakarta.validation.Valid;
 
 /**
- * Admin/exam-cell facing student management - pre-load a student master record
- * before any exam touches them, or fill in details on one an invigilator's scan
- * already created bare-bones. The invigilator's own read-only search
- * (GET /api/invigilator/students) is unchanged and lives separately.
+ * Admin-facing student management and HOD Excel import support.
  */
 @RestController
 @RequestMapping("/api/admin/students")

@@ -93,7 +93,7 @@ public class ChiefController {
     /** View-only: lets the Chief spot-check a script's scanned/annotated copy. */
     @GetMapping("/scripts/{scriptId}/file")
     public ResponseEntity<byte[]> getFile(@PathVariable UUID scriptId) {
-        byte[] bytes = valuationService.getScriptFile(scriptId);
+        byte[] bytes = valuationService.getReviewScriptFile(scriptId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")

@@ -9,49 +9,33 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.evaluation.prototype.academic.repository.BatchRepository;
-import com.evaluation.prototype.attendance.repository.AttendanceRepository;
+import com.evaluation.prototype.audit.service.AuditService;
 import com.evaluation.prototype.common.exception.ApiException;
+import com.evaluation.prototype.student.dto.StudentImportResponse;
 import com.evaluation.prototype.student.dto.StudentResponse;
 import com.evaluation.prototype.student.dto.StudentUpsertRequest;
 import com.evaluation.prototype.student.entity.Student;
 import com.evaluation.prototype.student.repository.StudentRepository;
+import com.evaluation.prototype.user.entity.User;
 
 @Service
 public class StudentService {
 
     private final StudentRepository studentRepository;
-    private final AttendanceRepository attendanceRepository;
     private final BatchRepository batchRepository;
+    private final AuditService auditService;
 
     public StudentService(
             StudentRepository studentRepository,
-            AttendanceRepository attendanceRepository,
-            BatchRepository batchRepository) {
+            BatchRepository batchRepository,
+            AuditService auditService) {
         this.studentRepository = studentRepository;
-        this.attendanceRepository = attendanceRepository;
         this.batchRepository = batchRepository;
-    }
-
-    @Transactional
-    public Student findOrCreateAndLinkAttendance(String registerNumber, String studentName) {
-        String normalizedRegisterNumber = normalize(registerNumber);
-        Student student = studentRepository.findByRegisterNumber(normalizedRegisterNumber)
-                .map(existing -> updateNameIfUseful(existing, studentName))
-                .orElseGet(() -> createStudent(normalizedRegisterNumber, studentName));
-
-        attendanceRepository.findByRegisterNumberAndStudentIsNull(normalizedRegisterNumber).forEach(attendance -> {
-            attendance.setStudent(student);
-            attendanceRepository.save(attendance);
-        });
-
-        return student;
+        this.auditService = auditService;
     }
 
     /**
-     * Admin/exam-cell facing: pre-load a student before any exam touches them, or
-     * fill in batch/DOB/category/gender on one an invigilator's scan already
-     * created bare-bones. Finds-or-creates by register number, same pattern as
-     * findOrCreateAndLinkAttendance above.
+     * HOD-facing: upsert a student's profile before exam registrations are imported.
      */
     @Transactional
     public StudentResponse upsert(StudentUpsertRequest request) {
@@ -80,6 +64,36 @@ public class StudentService {
         return StudentResponse.from(studentRepository.save(student));
     }
 
+    @Transactional
+    public StudentImportResponse importBatch(List<StudentUpsertRequest> requests, User actor) {
+        java.util.Set<String> registerNumbers = new java.util.HashSet<>();
+        for (StudentUpsertRequest request : requests) {
+            String normalizedRegisterNumber = normalize(request.registerNumber());
+            if (!StringUtils.hasText(normalizedRegisterNumber) || !registerNumbers.add(normalizedRegisterNumber)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "The spreadsheet contains a missing or duplicate register number.");
+            }
+            if (request.batchId() == null || !batchRepository.existsById(request.batchId())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Select a valid course batch before importing students.");
+            }
+        }
+
+        int created = 0;
+        int updated = 0;
+        for (StudentUpsertRequest request : requests) {
+            if (studentRepository.findByRegisterNumber(normalize(request.registerNumber())).isPresent()) {
+                updated++;
+            } else {
+                created++;
+            }
+            upsert(request);
+        }
+        auditService.record(actor, "Student", null, "BULK_IMPORT", null,
+                "{\"rowsProcessed\":%d,\"studentsCreated\":%d,\"studentsUpdated\":%d}"
+                        .formatted(requests.size(), created, updated));
+        return new StudentImportResponse(requests.size(), created, updated);
+    }
+
     public List<StudentResponse> search(String registerNumber) {
         return studentRepository.findByRegisterNumberContainingIgnoreCase(normalize(registerNumber)).stream()
                 .map(StudentResponse::from)
@@ -96,18 +110,4 @@ public class StudentService {
         return value == null ? null : value.trim().toUpperCase();
     }
 
-    private Student updateNameIfUseful(Student student, String studentName) {
-        if (StringUtils.hasText(studentName) && !studentName.equals(student.getStudentName())) {
-            student.setStudentName(studentName.trim());
-            return studentRepository.save(student);
-        }
-        return student;
-    }
-
-    private Student createStudent(String registerNumber, String studentName) {
-        Student student = new Student();
-        student.setRegisterNumber(registerNumber);
-        student.setStudentName(StringUtils.hasText(studentName) ? studentName.trim() : null);
-        return studentRepository.save(student);
-    }
 }

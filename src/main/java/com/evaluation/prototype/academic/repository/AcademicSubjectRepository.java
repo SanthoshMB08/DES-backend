@@ -14,6 +14,26 @@ public interface AcademicSubjectRepository extends JpaRepository<AcademicSubject
 
     List<AcademicSubject> findByQpCodeIgnoreCaseAndSemesterOrderByUpdatedAtDesc(String qpCode, String semester);
 
+    @Query("SELECT CASE WHEN COUNT(subject) > 0 THEN true ELSE false END FROM AcademicSubject subject "
+            + "WHERE LOWER(subject.qpCode) = LOWER(:qpCode) AND LOWER(subject.semester) = LOWER(:semester)")
+    boolean existsByQpCodeAndSemester(@Param("qpCode") String qpCode, @Param("semester") String semester);
+
+    boolean existsByQpCodeIgnoreCase(String qpCode);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(subject) > 0 THEN true ELSE false END
+            FROM AcademicSubject subject
+            WHERE subject.syllabus.id = :syllabusId
+              AND LOWER(subject.semester) = LOWER(:semester)
+              AND LOWER(subject.qpCode) = LOWER(:qpCode)
+              AND (:excludedSubjectId IS NULL OR subject.id <> :excludedSubjectId)
+            """)
+    boolean existsBySyllabusAndSemesterAndQpCode(
+            @Param("syllabusId") UUID syllabusId,
+            @Param("semester") String semester,
+            @Param("qpCode") String qpCode,
+            @Param("excludedSubjectId") UUID excludedSubjectId);
+
     long countByCurriculumId(UUID curriculumId);
 
     List<AcademicSubject> findByCurriculumIdOrderBySubjectCodeAsc(UUID curriculumId);

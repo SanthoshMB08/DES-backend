@@ -1,7 +1,6 @@
 package com.evaluation.prototype.admin.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,7 +11,6 @@ import com.evaluation.prototype.admin.dto.AdminDashboardResponse;
 import com.evaluation.prototype.admin.dto.AuditLogResponse;
 import com.evaluation.prototype.admin.dto.UserResponse;
 import com.evaluation.prototype.admin.service.AdminReportService;
-import com.evaluation.prototype.attendance.dto.AttendanceResponse;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -28,21 +26,6 @@ public class AdminReportController {
     @GetMapping("/dashboard")
     public AdminDashboardResponse dashboard() {
         return adminReportService.dashboard();
-    }
-
-    @GetMapping("/reports/attendance")
-    public Map<String, Object> attendanceSummary() {
-        return adminReportService.attendanceSummary();
-    }
-
-    @GetMapping("/reports/absent")
-    public List<AttendanceResponse> absentReport() {
-        return adminReportService.absentReport().stream().map(AttendanceResponse::from).toList();
-    }
-
-    @GetMapping("/reports/booklets")
-    public List<AttendanceResponse> bookletReport() {
-        return adminReportService.bookletReport().stream().map(AttendanceResponse::from).toList();
     }
 
     @GetMapping("/reports/users")

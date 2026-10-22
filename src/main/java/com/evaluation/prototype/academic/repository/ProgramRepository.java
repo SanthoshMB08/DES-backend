@@ -11,7 +11,11 @@ import com.evaluation.prototype.academic.entity.Program;
 public interface ProgramRepository extends JpaRepository<Program, UUID> {
     Optional<Program> findByCodeIgnoreCase(String code);
 
+    boolean existsByCodeIgnoreCase(String code);
+
     List<Program> findAllByOrderByNameAsc();
 
     List<Program> findByDepartmentIdOrderByNameAsc(UUID departmentId);
+
+    long countByDepartmentId(UUID departmentId);
 }

@@ -11,9 +11,14 @@ import com.evaluation.prototype.valuation.entity.Subject;
 public interface SubjectRepository extends JpaRepository<Subject, UUID> {
     Optional<Subject> findByQpCode(String qpCode);
 
+    Optional<Subject> findByQpCodeIgnoreCase(String qpCode);
+
+    boolean existsByQpCodeIgnoreCase(String qpCode);
+
+    boolean existsByQpCodeIgnoreCaseAndSemesterIgnoreCase(String qpCode, String semester);
+
     List<Subject> findByCourseRefId(UUID courseId);
 
     List<Subject> findByChiefId(UUID chiefId);
 
-    List<Subject> findByFacultyId(UUID facultyId);
 }

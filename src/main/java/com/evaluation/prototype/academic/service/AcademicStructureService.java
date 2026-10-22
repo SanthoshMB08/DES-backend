@@ -85,15 +85,15 @@ public class AcademicStructureService {
 
     @Transactional
     public DepartmentResponse createDepartment(DepartmentRequest request) {
-        if (departmentRepository.findByCodeIgnoreCase(request.code()).isPresent()) {
+        if (departmentRepository.existsByCodeIgnoreCase(request.code())) {
             throw new ApiException(HttpStatus.CONFLICT, "A department with this code already exists");
         }
         Department department = new Department();
         department.setName(request.name());
         department.setCode(request.code());
         department.setCreatedBy(currentUser());
-        department = departmentRepository.save(department);
-        return toResponse(department);
+        Department savedDepartment = departmentRepository.save(department);
+        return new DepartmentResponse(savedDepartment.getId(), savedDepartment.getName(), savedDepartment.getCode(), 0);
     }
 
     public List<DepartmentResponse> listDepartments() {
@@ -118,7 +118,7 @@ public class AcademicStructureService {
 
     @Transactional
     public ProgramResponse createProgram(ProgramRequest request) {
-        if (programRepository.findByCodeIgnoreCase(request.code()).isPresent()) {
+        if (programRepository.existsByCodeIgnoreCase(request.code())) {
             throw new ApiException(HttpStatus.CONFLICT, "A program with this code already exists");
         }
         Program program = new Program();
@@ -128,8 +128,10 @@ public class AcademicStructureService {
         program.setCode(request.code());
         program.setDurationSemesters(request.durationSemesters() != null ? request.durationSemesters() : 6);
         program.setCreatedBy(currentUser());
-        program = programRepository.save(program);
-        return toResponse(program);
+        Program savedProgram = programRepository.save(program);
+        return new ProgramResponse(savedProgram.getId(), savedProgram.getName(), savedProgram.getCode(),
+                savedProgram.getDurationSemesters(), savedProgram.getDepartment().getId(),
+                savedProgram.getDepartment().getName(), 0);
     }
 
     public List<ProgramResponse> listPrograms() {
@@ -169,8 +171,9 @@ public class AcademicStructureService {
                 ? request.label()
                 : program.getName() + " " + request.admissionYear());
         batch.setCreatedBy(currentUser());
-        batch = batchRepository.save(batch);
-        return toResponse(batch);
+        Batch savedBatch = batchRepository.save(batch);
+        return new BatchResponse(savedBatch.getId(), savedBatch.getAdmissionYear(), savedBatch.getLabel(),
+                savedBatch.getProgram().getId(), savedBatch.getProgram().getName(), 0);
     }
 
     public List<BatchResponse> listBatches() {
@@ -183,9 +186,8 @@ public class AcademicStructureService {
 
     @Transactional
     public SyllabusResponse createSyllabus(SyllabusRequest request) {
-        if (syllabusRepository.findAllByOrderByYearDesc().stream()
-                .anyMatch(s -> s.getProgram() == null && s.getName().equalsIgnoreCase(request.name())
-                        && s.getYear().equalsIgnoreCase(request.year()))) {
+        if (syllabusRepository.existsByProgramIsNullAndNameIgnoreCaseAndYearIgnoreCase(
+                request.name(), request.year())) {
             throw new ApiException(HttpStatus.CONFLICT, "This syllabus already exists");
         }
         Syllabus syllabus = new Syllabus();
@@ -199,8 +201,8 @@ public class AcademicStructureService {
     public SyllabusResponse createSyllabus(UUID programId, SyllabusRequest request) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Program not found"));
-        if (syllabusRepository.findByProgramIdOrderByYearDesc(programId).stream()
-                .anyMatch(s -> s.getName().equalsIgnoreCase(request.name()) && s.getYear().equalsIgnoreCase(request.year()))) {
+        if (syllabusRepository.existsByProgramIdAndNameIgnoreCaseAndYearIgnoreCase(
+                programId, request.name(), request.year())) {
             throw new ApiException(HttpStatus.CONFLICT, "This syllabus already exists for the program");
         }
         Syllabus syllabus = new Syllabus();
@@ -217,13 +219,11 @@ public class AcademicStructureService {
     public SyllabusResponse updateSyllabus(UUID syllabusId, SyllabusRequest request) {
         Syllabus syllabus = syllabusRepository.findById(syllabusId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Syllabus not found"));
-        boolean duplicate = syllabusRepository.findAllByOrderByYearDesc().stream()
-                .anyMatch(existing -> !existing.getId().equals(syllabusId)
-                        && java.util.Objects.equals(
-                                existing.getProgram() == null ? null : existing.getProgram().getId(),
-                                syllabus.getProgram() == null ? null : syllabus.getProgram().getId())
-                        && existing.getName().equalsIgnoreCase(request.name())
-                        && existing.getYear().equalsIgnoreCase(request.year()));
+        boolean duplicate = syllabus.getProgram() == null
+                ? syllabusRepository.existsByProgramIsNullAndNameIgnoreCaseAndYearIgnoreCaseAndIdNot(
+                        request.name(), request.year(), syllabusId)
+                : syllabusRepository.existsByProgramIdAndNameIgnoreCaseAndYearIgnoreCaseAndIdNot(
+                        syllabus.getProgram().getId(), request.name(), request.year(), syllabusId);
         if (duplicate) {
             throw new ApiException(HttpStatus.CONFLICT, "This syllabus already exists");
         }
@@ -254,7 +254,8 @@ public class AcademicStructureService {
         curriculum.setSyllabus(syllabus);
         curriculum.setSemester(request.semester());
         curriculum.setCreatedBy(currentUser());
-        return toResponse(academicCurriculumRepository.save(curriculum));
+        AcademicCurriculum savedCurriculum = academicCurriculumRepository.save(curriculum);
+        return toResponse(savedCurriculum, 0);
     }
 
     public List<AcademicCurriculumResponse> listCurricula() {
@@ -304,9 +305,13 @@ public class AcademicStructureService {
     }
 
     private AcademicCurriculumResponse toResponse(AcademicCurriculum value) {
+        return toResponse(value, academicSubjectRepository.countByCurriculumId(value.getId()));
+    }
+
+    private AcademicCurriculumResponse toResponse(AcademicCurriculum value, long subjectCount) {
         return new AcademicCurriculumResponse(value.getId(), value.getProgram().getId(), value.getProgram().getName(),
                 value.getSyllabus().getId(), value.getSyllabus().getName(), value.getSyllabus().getYear(),
-                value.getSemester(), academicSubjectRepository.countByCurriculumId(value.getId()));
+                value.getSemester(), subjectCount);
     }
 
     @Transactional
@@ -385,9 +390,8 @@ public class AcademicStructureService {
     }
 
     private void ensureUniqueQpCode(UUID syllabusId, String semester, String qpCode, UUID excludedSubjectId) {
-        boolean duplicate = academicSubjectRepository.findBySyllabusIdAndSemester(syllabusId, semester).stream()
-                .anyMatch(subject -> !subject.getId().equals(excludedSubjectId)
-                        && subject.getQpCode().equalsIgnoreCase(qpCode));
+        boolean duplicate = academicSubjectRepository.existsBySyllabusAndSemesterAndQpCode(
+                syllabusId, semester, qpCode, excludedSubjectId);
         if (duplicate) {
             throw new ApiException(HttpStatus.CONFLICT,
                     "A subject with this QP code already exists in the curriculum");
@@ -428,12 +432,12 @@ public class AcademicStructureService {
     // ---------- mapping ----------
 
     private DepartmentResponse toResponse(Department department) {
-        int programCount = programRepository.findByDepartmentIdOrderByNameAsc(department.getId()).size();
+        int programCount = Math.toIntExact(programRepository.countByDepartmentId(department.getId()));
         return new DepartmentResponse(department.getId(), department.getName(), department.getCode(), programCount);
     }
 
     private ProgramResponse toResponse(Program program) {
-        int batchCount = batchRepository.findByProgramIdOrderByAdmissionYearDesc(program.getId()).size();
+        int batchCount = Math.toIntExact(batchRepository.countByProgramId(program.getId()));
         return new ProgramResponse(
                 program.getId(),
                 program.getName(),

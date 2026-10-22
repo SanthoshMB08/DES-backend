@@ -11,11 +11,7 @@ spring:
       ddl-auto: validate
     open-in-view: false
   flyway:
-    enabled: true
-    # schema-consolidated.sql can be used to bootstrap an existing database
-    # without Flyway history. Treat that complete V1-V14 schema as baseline.
-    baseline-on-migrate: true
-    baseline-version: 14
+    enabled: false
   servlet:
     multipart:
       max-file-size: 30MB

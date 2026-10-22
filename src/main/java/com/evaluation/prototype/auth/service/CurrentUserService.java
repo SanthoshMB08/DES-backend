@@ -23,6 +23,9 @@ public class CurrentUserService {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Optional.empty();
         }
+        if (authentication.getPrincipal() instanceof AuthenticatedUserDetails principal) {
+            return Optional.of(principal.getUser());
+        }
         return userRepository.findByUsername(authentication.getName());
     }
 }

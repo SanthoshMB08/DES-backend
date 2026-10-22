@@ -20,15 +20,14 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriBuilder;
 
 import com.evaluation.prototype.common.exception.ApiException;
 
 /**
- * Supabase Storage for scanned answer-booklet PDFs. Each script has exactly one
- * object, keyed by its id ({scriptId}.pdf), that gets overwritten whenever a new
- * version is uploaded (e.g. the scanner's original, later replaced by the
- * evaluator's annotated copy). Nothing is ever served as a forced download -
- * callers get the raw bytes back to render inline.
+ * Supabase Storage for scanned answer-booklet PDFs. Originals and evaluator
+ * corrections are stored separately under their QP-code folders. The legacy
+ * script-id object remains readable for papers uploaded before this layout.
  *
  * Requests are made with the service_role key, which bypasses RLS, so this service
  * is the only door to the bucket. Keep the bucket private: these are exam papers.
@@ -71,17 +70,58 @@ public class SupabaseStorageService {
             log.warn("Supabase Storage is not configured - set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. "
                     + "Script PDFs cannot be uploaded or read until then.");
         }
+
     }
 
     private static String stripTrailingSlash(String url) {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
-    private String objectPath(UUID scriptId) {
+    private java.net.URI storageUri(UriBuilder uriBuilder, String endpoint, String path) {
+        return uriBuilder.path("/storage/v1/")
+                .path(endpoint)
+                .path("/")
+                .path(bucket)
+                .path("/")
+                .path(path)
+                .build();
+    }
+
+    private String legacyObjectPath(UUID scriptId) {
         return scriptId + ".pdf";
     }
 
+    public static String objectPath(String qpCode, String folder, UUID scriptId) {
+        String safeQpCode = qpCode == null ? "unassigned" : qpCode.trim()
+                .replaceAll("[^A-Za-z0-9._-]", "_");
+        if (safeQpCode.isBlank() || ".".equals(safeQpCode) || "..".equals(safeQpCode)) {
+            safeQpCode = "unassigned";
+        }
+        return safeQpCode + "/" + folder + "/" + scriptId + ".pdf";
+    }
+
+    private String originalObjectPath(String qpCode, UUID scriptId) {
+        return objectPath(qpCode, "qp-original", scriptId);
+    }
+
+    private String correctedObjectPath(String qpCode, UUID scriptId) {
+        return objectPath(qpCode, "qp-after-correction", scriptId);
+    }
+
+    /** Keeps the former storage API available for legacy callers. */
     public void store(UUID scriptId, MultipartFile file) {
+        storeObject(legacyObjectPath(scriptId), scriptId, file);
+    }
+
+    public void storeOriginal(UUID scriptId, String qpCode, MultipartFile file) {
+        storeObject(originalObjectPath(qpCode, scriptId), scriptId, file);
+    }
+
+    public void storeCorrected(UUID scriptId, String qpCode, MultipartFile file) {
+        storeObject(correctedObjectPath(qpCode, scriptId), scriptId, file);
+    }
+
+    private void storeObject(String path, UUID scriptId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "No file was uploaded");
         }
@@ -100,7 +140,7 @@ public class SupabaseStorageService {
 
         try {
             client.post()
-                    .uri("/storage/v1/object/{bucket}/{path}", bucket, objectPath(scriptId))
+                    .uri(uriBuilder -> storageUri(uriBuilder, "object", path))
                     .contentType(MediaType.APPLICATION_PDF)
                     // Without this the Storage API answers 400 "Asset Already Exists" when the
                     // evaluator re-uploads their annotated copy over the scanner's original.
@@ -123,11 +163,30 @@ public class SupabaseStorageService {
      * instead of the file itself.
      */
     public byte[] read(UUID scriptId) {
+        return readObject(legacyObjectPath(scriptId), scriptId);
+    }
+
+    public byte[] readOriginal(UUID scriptId, String qpCode) {
+        try {
+            return readObject(originalObjectPath(qpCode, scriptId), scriptId);
+        } catch (ApiException e) {
+            if (e.getStatus() != HttpStatus.NOT_FOUND) {
+                throw e;
+            }
+            return readObject(legacyObjectPath(scriptId), scriptId);
+        }
+    }
+
+    public byte[] readCorrected(UUID scriptId, String qpCode) {
+        return readObject(correctedObjectPath(qpCode, scriptId), scriptId);
+    }
+
+    private byte[] readObject(String path, UUID scriptId) {
         requireConfigured();
         byte[] bytes;
         try {
             bytes = client.get()
-                    .uri("/storage/v1/object/{bucket}/{path}", bucket, objectPath(scriptId))
+                    .uri(uriBuilder -> storageUri(uriBuilder, "object", path))
                     .retrieve()
                     .body(byte[].class);
         } catch (HttpStatusCodeException e) {
@@ -147,10 +206,23 @@ public class SupabaseStorageService {
     }
 
     public boolean exists(UUID scriptId) {
+        return existsObject(legacyObjectPath(scriptId), scriptId);
+    }
+
+    public boolean originalExists(UUID scriptId, String qpCode) {
+        return existsObject(originalObjectPath(qpCode, scriptId), scriptId)
+                || existsObject(legacyObjectPath(scriptId), scriptId);
+    }
+
+    public boolean correctedExists(UUID scriptId, String qpCode) {
+        return existsObject(correctedObjectPath(qpCode, scriptId), scriptId);
+    }
+
+    private boolean existsObject(String path, UUID scriptId) {
         requireConfigured();
         try {
             client.get()
-                    .uri("/storage/v1/object/info/{bucket}/{path}", bucket, objectPath(scriptId))
+                    .uri(uriBuilder -> storageUri(uriBuilder, "object/info", path))
                     .retrieve()
                     .toBodilessEntity();
             return true;

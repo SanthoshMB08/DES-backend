@@ -26,4 +26,7 @@ public interface ValuationScriptRepository extends JpaRepository<ValuationScript
     long countBySubjectIdAndBundleIsNull(UUID subjectId);
 
     Optional<ValuationScript> findFirstByCandidateIdIgnoreCaseAndQpCodeIgnoreCase(String candidateId, String qpCode);
+
+    Optional<ValuationScript> findFirstByCandidateIdIgnoreCaseAndQpCodeIgnoreCaseOrderByUpdatedAtDesc(
+            String candidateId, String qpCode);
 }

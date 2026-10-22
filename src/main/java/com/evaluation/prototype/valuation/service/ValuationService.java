@@ -2,6 +2,7 @@ package com.evaluation.prototype.valuation.service;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.YearMonth;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +15,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.evaluation.prototype.attendance.entity.Attendance;
-import com.evaluation.prototype.attendance.repository.AttendanceRepository;
 import com.evaluation.prototype.auth.service.CurrentUserService;
+import com.evaluation.prototype.booklet.entity.BookletRecord;
+import com.evaluation.prototype.booklet.repository.BookletRecordRepository;
 import com.evaluation.prototype.common.exception.ApiException;
-import com.evaluation.prototype.hallticket.entity.HallTicketExam;
-import com.evaluation.prototype.hallticket.repository.HallTicketExamRepository;
+import com.evaluation.prototype.hallticket.entity.HallTicketData;
+import com.evaluation.prototype.hallticket.repository.HallTicketDataRepository;
 import com.evaluation.prototype.user.entity.User;
 import com.evaluation.prototype.user.repository.UserRepository;
 import com.evaluation.prototype.valuation.dto.BookletLookupResponse;
@@ -36,13 +37,14 @@ import com.evaluation.prototype.valuation.enums.ValuationStatus;
 import com.evaluation.prototype.valuation.repository.SubjectRepository;
 import com.evaluation.prototype.valuation.repository.ValuationBundleRepository;
 import com.evaluation.prototype.valuation.repository.ValuationScriptRepository;
+import com.evaluation.prototype.valuation.entity.ExamMarksRecord;
+import com.evaluation.prototype.valuation.repository.ExamMarksRecordRepository;
 import com.evaluation.prototype.academic.entity.Syllabus;
 import com.evaluation.prototype.valuation.entity.Course;
 
 import org.springframework.web.multipart.MultipartFile;
 
 import com.evaluation.prototype.storage.SupabaseStorageService;
-import com.evaluation.prototype.student.entity.Student;
 
 @Service
 public class ValuationService {
@@ -58,8 +60,9 @@ public class ValuationService {
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final SupabaseStorageService fileStorageService;
-    private final AttendanceRepository attendanceRepository;
-    private final HallTicketExamRepository hallTicketExamRepository;
+    private final HallTicketDataRepository hallTicketDataRepository;
+    private final BookletRecordRepository bookletRecordRepository;
+    private final ExamMarksRecordRepository examMarksRecordRepository;
 
     public ValuationService(
             ValuationBundleRepository bundleRepository,
@@ -70,8 +73,9 @@ public class ValuationService {
             UserRepository userRepository,
             CurrentUserService currentUserService,
             SupabaseStorageService fileStorageService,
-            AttendanceRepository attendanceRepository,
-            HallTicketExamRepository hallTicketExamRepository) {
+            HallTicketDataRepository hallTicketDataRepository,
+            BookletRecordRepository bookletRecordRepository,
+            ExamMarksRecordRepository examMarksRecordRepository) {
         this.bundleRepository = bundleRepository;
         this.scriptRepository = scriptRepository;
         this.subjectRepository = subjectRepository;
@@ -80,8 +84,9 @@ public class ValuationService {
         this.userRepository = userRepository;
         this.currentUserService = currentUserService;
         this.fileStorageService = fileStorageService;
-        this.attendanceRepository = attendanceRepository;
-        this.hallTicketExamRepository = hallTicketExamRepository;
+        this.hallTicketDataRepository = hallTicketDataRepository;
+        this.bookletRecordRepository = bookletRecordRepository;
+        this.examMarksRecordRepository = examMarksRecordRepository;
     }
 
     private User currentUser() {
@@ -150,6 +155,7 @@ public class ValuationService {
         script.setStatus(ValuationStatus.PENDING);
         script.setCreatedBy(scanner);
         script = scriptRepository.save(script);
+        getOrCreateBookletRecord(script);
 
         log.info("Scanned answer script {} created for subject {}",
                 script.getId(), script.getSubjectId());
@@ -167,7 +173,10 @@ public class ValuationService {
     @Transactional
     public ScriptResponse attachScannedFile(UUID scriptId, MultipartFile file) {
         ValuationScript script = findScript(scriptId);
-        fileStorageService.store(scriptId, file);
+        fileStorageService.storeOriginal(scriptId, script.getQpCode(), file);
+        BookletRecord booklet = getOrCreateBookletRecord(script);
+        booklet.setOriginalPdfUrl(SupabaseStorageService.objectPath(script.getQpCode(), "qp-original", scriptId));
+        bookletRecordRepository.save(booklet);
         script.setFileUrl("/api/files/scripts/" + scriptId);
         if (script.getScannedFileName() == null || script.getScannedFileName().isBlank()) {
             script.setScannedFileName(file.getOriginalFilename());
@@ -177,14 +186,13 @@ public class ValuationService {
         return toScriptResponse(script);
     }
 
-    /** Returns the currently stored PDF bytes for a script - the scanned original, or the
-     *  evaluator's annotated copy once one has been submitted. Never a forced download. */
+    /** Returns the scanned original for scanner and evaluator previews. */
     public byte[] getScriptFile(UUID scriptId) {
-        findScript(scriptId);
-        return fileStorageService.read(scriptId);
+        ValuationScript script = findScript(scriptId);
+        return fileStorageService.readOriginal(scriptId, script.getQpCode());
     }
 
-    /** Evaluator uploads their corrected/annotated copy back, overwriting the same stored file. */
+    /** Evaluator uploads a corrected copy without replacing the original scan. */
     @Transactional
     public void replaceScriptFile(UUID scriptId, MultipartFile file) {
         ValuationScript script = findScript(scriptId);
@@ -192,9 +200,40 @@ public class ValuationService {
         if (script.getStatus() == ValuationStatus.REVIEWED || script.getStatus() == ValuationStatus.APPROVED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "This script has already been reviewed and fixed");
         }
-        fileStorageService.store(scriptId, file);
+        fileStorageService.storeCorrected(scriptId, script.getQpCode(), file);
+        BookletRecord booklet = getOrCreateBookletRecord(script);
+        booklet.setCorrectedPdfUrl(SupabaseStorageService.objectPath(script.getQpCode(), "qp-after-correction", scriptId));
+        bookletRecordRepository.save(booklet);
         script.setFileUrl("/api/files/scripts/" + scriptId);
         scriptRepository.save(script);
+    }
+
+    public byte[] getCorrectedScriptFile(String candidateId, String qpCode) {
+        if (candidateId == null || candidateId.isBlank() || qpCode == null || qpCode.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Role number and QP code are required");
+        }
+        User staff = currentUser();
+        ValuationScript script = scriptRepository
+                .findFirstByCandidateIdIgnoreCaseAndQpCodeIgnoreCaseOrderByUpdatedAtDesc(
+                        candidateId.trim(), qpCode.trim())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "No paper was found for this role number and QP code"));
+        log.info("Corrected paper downloaded by staff {} for script {} (role number {}, QP code {})",
+                staff.getId(), script.getId(), candidateId.trim(), qpCode.trim());
+        return fileStorageService.readCorrected(script.getId(), script.getQpCode());
+    }
+
+    public byte[] getCorrectedScriptFile(UUID scriptId) {
+        ValuationScript script = findScript(scriptId);
+        return fileStorageService.readCorrected(scriptId, script.getQpCode());
+    }
+
+    public byte[] getReviewScriptFile(UUID scriptId) {
+        ValuationScript script = findScript(scriptId);
+        if (fileStorageService.correctedExists(scriptId, script.getQpCode())) {
+            return fileStorageService.readCorrected(scriptId, script.getQpCode());
+        }
+        return fileStorageService.readOriginal(scriptId, script.getQpCode());
     }
 
     // ---------- CHIEF (formerly BO) - forms bundles from scanned scripts, assigns to evaluators ----------
@@ -371,6 +410,11 @@ public class ValuationService {
         script.setTotalMarks(totalMarks);
         script.setStatus(ValuationStatus.VALUATED);
         script = scriptRepository.save(script);
+        bookletRecordRepository.findByBookletNumber(script.getAnswerBookletId()).ifPresent(booklet -> {
+            booklet.setEvaluator(valuator);
+            bookletRecordRepository.save(booklet);
+        });
+        syncExamMarks(script);
 
         ValuationBundle bundle = script.getBundle();
         if (bundle != null) {
@@ -422,6 +466,11 @@ public class ValuationService {
         // Once approved the marks are fixed (REVIEWED is the final, locked state in this flow).
         script.setStatus(request.approved() ? ValuationStatus.REVIEWED : ValuationStatus.PENDING);
         script = scriptRepository.save(script);
+        bookletRecordRepository.findByBookletNumber(script.getAnswerBookletId()).ifPresent(booklet -> {
+            booklet.setReviewer(reviewer);
+            bookletRecordRepository.save(booklet);
+        });
+        syncExamMarks(script);
 
         ValuationBundle bundle = script.getBundle();
         if (bundle != null) {
@@ -435,6 +484,55 @@ public class ValuationService {
         log.info("Answer script {} review completed by reviewer {}; approved={}, status={}",
                 script.getId(), reviewer.getId(), request.approved(), script.getStatus());
         return toScriptResponse(script);
+    }
+
+    private BookletRecord getOrCreateBookletRecord(ValuationScript script) {
+        BookletRecord booklet = bookletRecordRepository.findByBookletNumber(script.getAnswerBookletId())
+                .orElseGet(BookletRecord::new);
+        booklet.setBookletNumber(script.getAnswerBookletId());
+        String examYearMonth = script.getExamDate() == null ? null : YearMonth.from(script.getExamDate()).toString();
+        booklet = bookletRecordRepository.save(booklet);
+
+        HallTicketData registration = hallTicketDataRepository.findByBooklet_Id(booklet.getId()).orElse(null);
+        if (registration == null && script.getCandidateId() != null
+                && script.getQpCode() != null && examYearMonth != null) {
+            registration = hallTicketDataRepository
+                    .findByQpCodeIgnoreCaseAndUsnIgnoreCaseAndExamYearMonth(
+                            script.getQpCode(), script.getCandidateId(), examYearMonth)
+                    .orElse(null);
+        }
+        if (registration != null) {
+            if (registration.getBooklet() != null
+                    && !registration.getBooklet().getId().equals(booklet.getId())) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "This student exam registration already has a different booklet.");
+            }
+            registration.setBooklet(booklet);
+            hallTicketDataRepository.save(registration);
+        }
+        return booklet;
+    }
+
+    private void syncExamMarks(ValuationScript script) {
+        if (script.getAnswerBookletId() == null || script.getAnswerBookletId().isBlank()) {
+            log.warn("Marks for script {} remain in valuation_script because it has no booklet number",
+                    script.getId());
+            return;
+        }
+        BookletRecord booklet = getOrCreateBookletRecord(script);
+        HallTicketData registration = hallTicketDataRepository.findByBooklet_Id(booklet.getId()).orElse(null);
+        if (registration == null) {
+            log.warn("Marks for script {} remain in valuation_script because no imported QP/USN/year-month registration matched",
+                    script.getId());
+            return;
+        }
+        ExamMarksRecord marks = examMarksRecordRepository.findByBooklet_Id(booklet.getId())
+                .orElseGet(ExamMarksRecord::new);
+        marks.setBooklet(booklet);
+        marks.setUsn(registration.getUsn());
+        marks.setQuestionMarks(script.getMarksJson());
+        marks.setTotalMarks(script.getTotalMarks());
+        examMarksRecordRepository.save(marks);
     }
 
     // ---------- SHARED ----------
@@ -473,32 +571,14 @@ public class ValuationService {
 
     @Transactional(readOnly = true)
     public BookletLookupResponse lookupBooklet(String bookletId) {
-
-        Attendance attendance = attendanceRepository
-                .findByAnswerBookletNumber(bookletId)
-                .orElseThrow(() ->
-                    new ApiException(HttpStatus.NOT_FOUND, "Answer booklet not found: " + bookletId));
-
-        Student student = attendance.getStudent();
-        Subject subject = subjectRepository.findByQpCode(attendance.getQpCode()).orElse(null);
-
-        // The hall-ticket exam row tells us which paper, date and centre this
-        // booklet was actually issued for. The evaluation subject supplies the
-        // degree-level course/semester, so it stays the primary source for those
-        // - on a hall-ticket exam row "course" means the paper name, not the
-        // degree, and must not overwrite it.
-        String registerNumber = student != null ? student.getRegisterNumber() : null;
-        HallTicketExam exam = (registerNumber == null || attendance.getExamDate() == null)
-                ? null
-                : hallTicketExamRepository
-                        .findByHallTicket_RegisterNumberIgnoreCaseAndExamDateAndQpCode(
-                                registerNumber, attendance.getExamDate(), attendance.getQpCode())
-                        .orElse(null);
-
-        String semesterText = subject != null ? subject.getSemester() : null;
-        if (semesterText == null && exam != null && exam.getHallTicket() != null) {
-            semesterText = exam.getHallTicket().getSemester();
-        }
+        ValuationScript script = scriptRepository.findByAnswerBookletId(bookletId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Answer booklet not found: " + bookletId));
+        HallTicketData registration = hallTicketDataRepository
+                .findByBooklet_BookletNumber(bookletId).orElse(null);
+        String candidateId = registration == null ? script.getCandidateId() : registration.getUsn();
+        String qpCode = registration == null ? script.getQpCode() : registration.getQpCode();
+        Subject subject = qpCode == null ? null : subjectRepository.findByQpCode(qpCode).orElse(null);
+        String semesterText = subject != null ? subject.getSemester() : script.getSemester();
         Integer semesterNumber = null;
         if (semesterText != null) {
             try {
@@ -509,21 +589,15 @@ public class ValuationService {
         }
 
         return new BookletLookupResponse(
-                attendance.getAnswerBookletNumber(),
-                registerNumber,
-                student != null ? student.getStudentName() : null,
-                attendance.getQpCode(),
-                firstNonBlank(
-                        subject != null ? subject.getCourse() : null,
-                        exam != null ? exam.getCourseName() : null),
+                script.getAnswerBookletId(),
+                candidateId,
+                script.getCandidateName(),
+                qpCode,
+                subject != null ? subject.getCourse() : script.getCourse(),
                 semesterNumber,
-                firstNonBlank(
-                        subject != null ? subject.getSubjectName() : null,
-                        exam != null ? exam.getCourseName() : null),
-                attendance.getExamDate(),
-                firstNonBlank(
-                        exam != null ? exam.getCentreCode() : null,
-                        student != null ? student.getCenterCode() : null),
+                subject != null ? subject.getSubjectName() : script.getSubject(),
+                script.getExamDate(),
+                script.getCenterCode(),
                 true
         );
     }

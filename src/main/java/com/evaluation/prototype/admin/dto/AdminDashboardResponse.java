@@ -4,12 +4,9 @@ import java.util.List;
 
 public record AdminDashboardResponse(
         long totalUsers,
-        long totalInvigilators,
         long totalStudents,
-        long totalHallTicketsScanned,
-        long totalPresentStudents,
-        long totalAbsentStudents,
-        long totalBookletsAssigned,
+        long totalExamRegistrations,
+        long totalBooklets,
         long todaysActivity,
         List<AuditLogResponse> recentAuditEvents) {
 }

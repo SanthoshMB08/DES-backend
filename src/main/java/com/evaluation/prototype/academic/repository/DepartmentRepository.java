@@ -11,5 +11,7 @@ import com.evaluation.prototype.academic.entity.Department;
 public interface DepartmentRepository extends JpaRepository<Department, UUID> {
     Optional<Department> findByCodeIgnoreCase(String code);
 
+    boolean existsByCodeIgnoreCase(String code);
+
     List<Department> findAllByOrderByNameAsc();
 }

@@ -19,6 +19,9 @@ import org.springframework.web.multipart.MultipartFile;
 import com.evaluation.prototype.valuation.dto.BookletLookupResponse;
 import com.evaluation.prototype.valuation.dto.ScriptCreateRequest;
 import com.evaluation.prototype.valuation.dto.ScriptResponse;
+import com.evaluation.prototype.valuation.dto.ScannerBookletSubmitResponse;
+import com.evaluation.prototype.valuation.dto.ScannerRegistrationResponse;
+import com.evaluation.prototype.valuation.service.ScannerBookletService;
 import com.evaluation.prototype.valuation.service.ValuationService;
 
 import jakarta.validation.Valid;
@@ -29,9 +32,27 @@ import jakarta.validation.Valid;
 public class ScannerController {
 
     private final ValuationService valuationService;
+    private final ScannerBookletService scannerBookletService;
 
-    public ScannerController(ValuationService valuationService) {
+    public ScannerController(ValuationService valuationService, ScannerBookletService scannerBookletService) {
         this.valuationService = valuationService;
+        this.scannerBookletService = scannerBookletService;
+    }
+
+    @GetMapping("/registrations")
+    public List<ScannerRegistrationResponse> findRegistrations(
+            @RequestParam String usn,
+            @RequestParam String qpCode,
+            @RequestParam(required = false) String examYearMonth) {
+        return scannerBookletService.findRegistrations(usn, qpCode, examYearMonth);
+    }
+
+    @PostMapping("/booklets/submit")
+    public ScannerBookletSubmitResponse submitBooklet(
+            @RequestParam UUID registrationId,
+            @RequestParam String bookletNumber,
+            @RequestParam("file") MultipartFile file) {
+        return scannerBookletService.submit(registrationId, bookletNumber, file);
     }
 
     @GetMapping("/booklets/{answerBookletId}")
@@ -59,6 +80,15 @@ public class ScannerController {
     @GetMapping("/scripts/{scriptId}/file")
     public ResponseEntity<byte[]> getFile(@PathVariable UUID scriptId) {
         byte[] bytes = valuationService.getScriptFile(scriptId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .body(bytes);
+    }
+
+    @GetMapping("/scripts/{scriptId}/corrected-file")
+    public ResponseEntity<byte[]> getCorrectedFile(@PathVariable UUID scriptId) {
+        byte[] bytes = valuationService.getCorrectedScriptFile(scriptId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")

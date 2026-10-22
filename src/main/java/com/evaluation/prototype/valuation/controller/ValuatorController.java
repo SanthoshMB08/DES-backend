@@ -84,7 +84,7 @@ public class ValuatorController {
                 .body(bytes);
     }
 
-    /** Evaluator uploads their corrected/annotated copy back, overwriting the same stored file. */
+    /** Evaluator uploads a corrected/annotated copy to the separate QP correction folder. */
     @PutMapping("/scripts/{scriptId}/file")
     public void replaceFile(@PathVariable UUID scriptId, @RequestParam("file") MultipartFile file) {
         valuationService.replaceScriptFile(scriptId, file);

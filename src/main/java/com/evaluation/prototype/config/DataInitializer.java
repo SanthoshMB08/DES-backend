@@ -30,15 +30,15 @@ import com.evaluation.prototype.valuation.repository.ValuationScriptRepository;
 @Component
 public class DataInitializer implements ApplicationRunner {
 
-    private static final String INVIGILATOR_ROLE = "ROLE_INVIGILATOR";
     private static final String ADMIN_ROLE = "ROLE_ADMIN";
-    private static final String SUPPORT_STAFF_ROLE = "ROLE_SUPPORT_STAFF";
+    private static final String STAFF_ROLE = "ROLE_STAFF";
     private static final String SCANNER_ROLE = "ROLE_SCANNER";
     private static final String VALUATOR_ROLE = "ROLE_VALUATOR"; // Evaluator
     private static final String REVIEWER_ROLE = "ROLE_REVIEWER";
     private static final String BOE_ROLE = "ROLE_BOE"; // Board Officer (BO)
     private static final String CHIEF_ROLE = "ROLE_CHIEF"; // Subject Chief
     private static final String RE_ROLE = "ROLE_RE"; // Register of Evaluation
+    private static final String HOD_ROLE = "ROLE_HOD"; // Head of Department
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -73,17 +73,7 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         List<Permission> permissions = seedPermissions();
         Role adminRole = seedRole(ADMIN_ROLE, "Unrestricted system administrator", permissions);
-        Role invigilatorRole = seedRole(INVIGILATOR_ROLE, "Exam hall invigilator",
-                permissions.stream()
-                        .filter(permission -> List.of("SCAN_HALL_TICKET", "SCAN_BOOKLET", "MARK_ABSENT")
-                                .contains(permission.getName()))
-                        .toList());
-
-        Role supportStaffRole = seedRole(SUPPORT_STAFF_ROLE, "Digitizing support staff",
-                permissions.stream()
-                        .filter(permission -> List.of("UPLOAD_SCANNED_BOOKLET", "CONFIRM_SCANNED_UPLOAD", "COMPLETE_BUNDLE", "REPLACE_SCANNED_BOOKLET")
-                                .contains(permission.getName()))
-                        .toList());
+        seedRole(STAFF_ROLE, "Staff - downloads corrected answer papers by role number and QP code", List.of());
 
         Role scannerRole = seedRole(SCANNER_ROLE, "Scans and uploads answer booklets", List.of());
         Role reRole = seedRole(RE_ROLE, "Register of Evaluation - creates Courses, appoints Board Officers", List.of());
@@ -91,6 +81,7 @@ public class DataInitializer implements ApplicationRunner {
         Role chiefRole = seedRole(CHIEF_ROLE, "Subject Chief - forms bundles, appoints the Reviewer for one subject", List.of());
         Role reviewerRole = seedRole(REVIEWER_ROLE, "Reviewer - appoints Evaluators, reviews and fixes marks", List.of());
         Role valuatorRole = seedRole(VALUATOR_ROLE, "Evaluator - marks answer scripts", List.of());
+        seedRole(HOD_ROLE, "Head of Department - imports student and hall-ticket pre-data", List.of());
 
         userRepository.findByUsername("admin").orElseGet(() -> {
             User user = new User();
@@ -99,24 +90,6 @@ public class DataInitializer implements ApplicationRunner {
             user.setFullName("Default System Administrator");
             user.setForcePasswordChange(true);
             user.getRoles().add(adminRole);
-            return userRepository.save(user);
-        });
-
-        userRepository.findByUsername("invigilator").orElseGet(() -> {
-            User user = new User();
-            user.setUsername("invigilator");
-            user.setPasswordHash(passwordEncoder.encode("password"));
-            user.setFullName("Default Invigilator");
-            user.getRoles().add(invigilatorRole);
-            return userRepository.save(user);
-        });
-
-        userRepository.findByUsername("support").orElseGet(() -> {
-            User user = new User();
-            user.setUsername("support");
-            user.setPasswordHash(passwordEncoder.encode("staff123"));
-            user.setFullName("Default Support Staff");
-            user.getRoles().add(supportStaffRole);
             return userRepository.save(user);
         });
 
@@ -257,9 +230,6 @@ public class DataInitializer implements ApplicationRunner {
                 "CREATE_USER",
                 "DELETE_USER",
                 "VIEW_AUDIT",
-                "MARK_ABSENT",
-                "SCAN_HALL_TICKET",
-                "SCAN_BOOKLET",
                 "VIEW_REPORTS",
                 "MANAGE_ROLES",
                 "MANAGE_PERMISSIONS",

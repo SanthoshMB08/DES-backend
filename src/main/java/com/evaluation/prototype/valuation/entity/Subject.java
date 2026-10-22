@@ -43,28 +43,11 @@ public class Subject {
     @Column(nullable = false)
     private SubjectStatus status = SubjectStatus.OPEN;
 
-    // Represents the max SEE (Semester End Exam) marks - this evaluation app is
-    // the SEE engine. See the CIE-side fields below, added for Phase 2.
     @Column(name = "max_marks", nullable = false)
     private java.math.BigDecimal maxMarks = java.math.BigDecimal.valueOf(100);
 
     /** Credit weight of this subject in the program's curriculum, e.g. 4.0. */
     private java.math.BigDecimal credits;
-
-    /** What fraction of the final grade comes from CIE (internal) marks, e.g. 40.00 for 40%. */
-    @Column(name = "cie_weightage")
-    private java.math.BigDecimal cieWeightage;
-
-    /** What fraction of the final grade comes from SEE (external) marks, e.g. 60.00 for 60%. */
-    @Column(name = "see_weightage")
-    private java.math.BigDecimal seeWeightage;
-
-    @Column(name = "max_cie_marks")
-    private java.math.BigDecimal maxCieMarks;
-
-    /** Minimum combined (CIE + SEE) marks needed to pass this subject. */
-    @Column(name = "min_pass_marks")
-    private java.math.BigDecimal minPassMarks;
 
     @ManyToOne
     @JoinColumn(name = "course_id")
@@ -73,15 +56,6 @@ public class Subject {
     @ManyToOne
     @JoinColumn(name = "chief_id")
     private User chief;
-
-    /** The subject's teaching faculty, assigned by the BO (parallel to Chief for SEE) - enters CIE marks. */
-    @ManyToOne
-    @JoinColumn(name = "faculty_id")
-    private User faculty;
-
-    /** Once locked, no further CIE marks can be entered or changed for this subject. */
-    @Column(name = "cie_locked", nullable = false)
-    private boolean cieLocked = false;
 
     @ManyToOne
     @JoinColumn(name = "opened_by", nullable = false)
@@ -176,38 +150,6 @@ public class Subject {
         this.credits = credits;
     }
 
-    public java.math.BigDecimal getCieWeightage() {
-        return cieWeightage;
-    }
-
-    public void setCieWeightage(java.math.BigDecimal cieWeightage) {
-        this.cieWeightage = cieWeightage;
-    }
-
-    public java.math.BigDecimal getSeeWeightage() {
-        return seeWeightage;
-    }
-
-    public void setSeeWeightage(java.math.BigDecimal seeWeightage) {
-        this.seeWeightage = seeWeightage;
-    }
-
-    public java.math.BigDecimal getMaxCieMarks() {
-        return maxCieMarks;
-    }
-
-    public void setMaxCieMarks(java.math.BigDecimal maxCieMarks) {
-        this.maxCieMarks = maxCieMarks;
-    }
-
-    public java.math.BigDecimal getMinPassMarks() {
-        return minPassMarks;
-    }
-
-    public void setMinPassMarks(java.math.BigDecimal minPassMarks) {
-        this.minPassMarks = minPassMarks;
-    }
-
     public Course getCourseRef() {
         return courseRef;
     }
@@ -222,22 +164,6 @@ public class Subject {
 
     public void setChief(User chief) {
         this.chief = chief;
-    }
-
-    public User getFaculty() {
-        return faculty;
-    }
-
-    public void setFaculty(User faculty) {
-        this.faculty = faculty;
-    }
-
-    public boolean isCieLocked() {
-        return cieLocked;
-    }
-
-    public void setCieLocked(boolean cieLocked) {
-        this.cieLocked = cieLocked;
     }
 
     public User getOpenedBy() {
